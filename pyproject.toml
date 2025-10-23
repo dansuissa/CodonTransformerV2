@@ -2,7 +2,7 @@
 name = "CodonTransformer2"
 version = "2.0.0"
 description = "CodonTransformer2."
-authors = ["Guillaume Filion <guillaume.filion@gmail.com>"]
+authors = ["Guillaume Filion <guillaume.filion@gmail.com>", "Adibvafa Fallahpour <adibvafafallahpour@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/gui11aume/CodonTransformer2"

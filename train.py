@@ -5,6 +5,8 @@ import lightning.pytorch as pl
 import torch
 import torch.nn as nn
 import webdataset as wds
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from torch.utils.data import DataLoader
 from transformers import (
     ModernBertConfig,
@@ -16,6 +18,25 @@ from codontransformer2.dataset import MaskedTokenizerCollator
 
 
 class TrainHarness(pl.LightningModule):
+    """
+    PyTorch Lightning module for training CodonTransformer with species-specific embeddings.
+
+    This harness wraps a ModernBERT model for masked language modeling on codon sequences,
+    adding species-specific embeddings to enable organism-aware codon optimization.
+
+    Args:
+        model: ModernBertForMaskedLM model instance
+        n_species: Total number of species/organisms to support
+        learning_rate: Maximum learning rate for training
+        warmup_fraction: Fraction of total steps for linear warmup (default: 0.1)
+
+    Attributes:
+        model: The underlying transformer model
+        species_embed: Embedding layer for species-specific representations
+        learning_rate: Learning rate for optimization
+        warmup_fraction: Fraction of training for warmup phase
+    """
+
     def __init__(self, model, n_species, learning_rate, warmup_fraction):
         super().__init__()
         self.model = model
@@ -24,33 +45,83 @@ class TrainHarness(pl.LightningModule):
         self.warmup_fraction = warmup_fraction
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
-            self.model.parameters(),
+        """
+        Configure AdamW optimizer with linear warmup and cosine decay schedule.
+
+        Uses 10% linear warmup followed by 90% cosine annealing decay to 0.1 of max LR.
+
+        Returns:
+            Tuple[List, List]: A tuple containing:
+                - List of optimizers (AdamW)
+                - List of scheduler configs with step-level updates
+        """
+        optimizer = AdamW(
+            self.parameters(),
             lr=self.learning_rate,
         )
-        lr_scheduler = {
-            "scheduler": torch.optim.lr_scheduler.OneCycleLR(
-                optimizer,
-                max_lr=self.learning_rate,
-                total_steps=self.trainer.estimated_stepping_batches,
-                pct_start=self.warmup_fraction,
-            ),
-            "interval": "step",
-            "frequency": 1,
-        }
-        return [optimizer], [lr_scheduler]
+
+        total_steps = self.trainer.estimated_stepping_batches
+        warmup_steps = int(self.warmup_fraction * total_steps)
+        decay_steps = total_steps - warmup_steps
+
+        print(f"Optimizer configured with LR: {self.learning_rate}")
+        print(
+            f"Total steps: {total_steps}, Warmup steps: {warmup_steps}, Decay steps: {decay_steps}"
+        )
+
+        # Linear warmup from near-zero to max LR
+        warmup = LinearLR(
+            optimizer,
+            start_factor=1e-8,
+            end_factor=1.0,
+            total_iters=warmup_steps,
+        )
+
+        # Cosine decay from max LR to 0.1 * max LR
+        decay = CosineAnnealingLR(
+            optimizer,
+            T_max=decay_steps,
+            eta_min=self.learning_rate * 0.1,
+        )
+
+        # Combine warmup and decay
+        scheduler = SequentialLR(
+            optimizer=optimizer,
+            schedulers=[warmup, decay],
+            milestones=[warmup_steps],
+        )
+
+        return [optimizer], [{"scheduler": scheduler, "interval": "step"}]
 
     def training_step(self, batch, batch_idx):
+        """
+        Perform a single training step with species-conditioned masked language modeling.
+
+        Args:
+            batch: Dictionary containing:
+                - input_ids: Tokenized codon sequences [B, L]
+                - species_id: Species identifiers [B]
+                - attention_mask: Attention mask [B, L]
+                - labels: Target labels for masked tokens [B, L]
+            batch_idx: Index of the current batch
+
+        Returns:
+            torch.Tensor: Loss value for this batch
+        """
+        # Get token embeddings and add species-specific information
         token_embeds = self.model.get_input_embeddings()(batch["input_ids"])
         sp_vec = self.species_embed(batch["species_id"])  # [B, H]
         sp_vec = sp_vec.unsqueeze(1).expand_as(token_embeds)  # [B, L, H]
         inputs_embeds = token_embeds + sp_vec
 
+        # Forward pass through the model
         outputs = self.model(
             inputs_embeds=inputs_embeds,
             attention_mask=batch["attention_mask"],
             labels=batch["labels"],
         )
+
+        # Log metrics
         self.log_dict(
             dictionary={
                 "loss": outputs.loss,
@@ -63,12 +134,36 @@ class TrainHarness(pl.LightningModule):
 
 
 class EpochCheckpoint(pl.Callback):
+    """
+    PyTorch Lightning callback for saving model checkpoints at epoch intervals.
+
+    Saves checkpoints at regular epoch intervals, including epoch 0 (initialization).
+
+    Args:
+        save_interval: Save checkpoint every N epochs (e.g., 1 for every epoch)
+        checkpoint_dir: Directory path where checkpoints will be saved
+
+    Attributes:
+        checkpoint_dir: Directory for saving checkpoints
+        save_interval: Interval between checkpoint saves
+    """
+
     def __init__(self, save_interval, checkpoint_dir):
         super().__init__()
         self.checkpoint_dir = checkpoint_dir
         self.save_interval = save_interval
 
     def on_train_epoch_end(self, trainer, pl_module):
+        """
+        Called at the end of each training epoch to save checkpoints.
+
+        Args:
+            trainer: PyTorch Lightning trainer instance
+            pl_module: The LightningModule being trained
+
+        Returns:
+            None
+        """
         current_epoch = trainer.current_epoch
         if current_epoch % self.save_interval == 0 or current_epoch == 0:
             checkpoint_path = os.path.join(self.checkpoint_dir, f"epoch_{current_epoch}.ckpt")
@@ -77,11 +172,16 @@ class EpochCheckpoint(pl.Callback):
 
 
 def main(args):
+    """
+    Main training function for CodonTransformer2.
+    """
+    # Set random seed and configure PyTorch for optimal performance
     pl.seed_everything(args.seed)
     torch.set_float32_matmul_precision("medium")
     torch.backends.cuda.enable_flash_sdp(True)
     torch.backends.cuda.enable_mem_efficient_sdp(True)
 
+    # Initialize codon tokenizer with special tokens
     tokenizer = PreTrainedTokenizerFast(
         tokenizer_file=args.tokenizer_file,
         bos_token="[CLS]",
@@ -94,6 +194,7 @@ def main(args):
         max_len=args.max_length,
     )
 
+    # Configure ModernBERT model for masked language modeling
     config = ModernBertConfig(
         vocab_size=len(tokenizer),
         pad_token_id=tokenizer.pad_token_id,
@@ -103,6 +204,8 @@ def main(args):
         attn_implementation="flash_attention_2",
     )
     model = ModernBertForMaskedLM(config=config)
+
+    # Wrap model with species-aware training harness
     harnessed_model = TrainHarness(
         model,
         n_species=args.num_organisms + args.extra_organisms,
@@ -110,6 +213,7 @@ def main(args):
         warmup_fraction=args.warmup_fraction,
     )
 
+    # Set up WebDataset pipeline for distributed training
     shard_pattern = os.path.join(args.dataroot, args.shard_pattern)
     train_data = wds.WebDataset(
         shard_pattern,
@@ -125,10 +229,12 @@ def main(args):
         pin_memory=True,
     )
 
+    # Configure callbacks
     callbacks = []
     if args.save_interval > 0:
         callbacks.append(EpochCheckpoint(args.save_interval, args.checkpoint_dir))
 
+    # Initialize PyTorch Lightning trainer with distributed training support
     trainer = pl.Trainer(
         default_root_dir=args.checkpoint_dir,
         strategy=args.strategy,
@@ -143,6 +249,7 @@ def main(args):
         callbacks=callbacks,
     )
 
+    # Start training
     trainer.fit(harnessed_model, data_loader)
 
 

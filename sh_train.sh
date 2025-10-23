@@ -32,7 +32,7 @@ CHECKPOINT_DIR="."
 SAVE_INTERVAL=1
 
 # Other configuration
-SEED=123
+SEED=23
 
 # Run training
 python train.py \
