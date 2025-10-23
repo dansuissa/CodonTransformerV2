@@ -10,8 +10,6 @@ import json
 import torch
 
 # Mapping from codon token IDs to their corresponding amino acid mask token IDs
-# This allows the model to learn codon usage by predicting specific codons from
-# amino acid-level masked tokens.
 TOKEN2MASK: dict[int, int] = {
     26: 13,  # K_AAA -> K*
     27: 16,  # N_AAC -> N*
@@ -164,8 +162,8 @@ class MaskedTokenizerCollator:
         inputs = tokenized["input_ids"]
         targets = inputs.clone()
 
-        # Select 15% of tokens for masking (excluding special tokens)
-        prob_matrix = torch.full(inputs.shape, 0.15)
+        # Select 30% of tokens for masking (excluding special tokens)
+        prob_matrix = torch.full(inputs.shape, 0.30)
         # Leave special tokens and pads as they are.
         prob_matrix[inputs < 5] = 0.0
         selected = torch.bernoulli(prob_matrix).bool()
@@ -180,7 +178,6 @@ class MaskedTokenizerCollator:
         inputs[randomized] = random_aa[randomized]
 
         # Remaining 10% of selected tokens stay unchanged (handled implicitly)
-
         tokenized["input_ids"] = inputs
         tokenized["labels"] = torch.where(selected, targets, -100)
 
