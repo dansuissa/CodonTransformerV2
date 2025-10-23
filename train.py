@@ -112,11 +112,11 @@ class TrainHarness(pl.LightningModule):
         token_embeds = self.model.get_input_embeddings()(batch["input_ids"])
         sp_vec = self.species_embed(batch["species_id"])  # [B, H]
         sp_vec = sp_vec.unsqueeze(1).expand_as(token_embeds)  # [B, L, H]
-        inputs_embeds = token_embeds + sp_vec
+        token_embeds = token_embeds + sp_vec
 
         # Forward pass through the model
         outputs = self.model(
-            inputs_embeds=inputs_embeds,
+            inputs_embeds=token_embeds,
             attention_mask=batch["attention_mask"],
             labels=batch["labels"],
         )
