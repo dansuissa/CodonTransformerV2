@@ -120,7 +120,6 @@ class MaskedTokenizerCollator:
             & ~replaced
             & ~mask_token
         )
-
         for batch_index, token_index in random_synonym_mask.nonzero(as_tuple=False):
             original_token_id = int(targets[batch_index, token_index])
             synonym_candidates = SYNONYMOUS_CODONS.get(original_token_id, [original_token_id])
