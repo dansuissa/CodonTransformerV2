@@ -11,7 +11,7 @@ TOKENIZER_FILE="data/codon_transformer_tokenizer.json"
 # Model configuration
 NUM_ORGANISMS=4742
 EXTRA_ORGANISMS=2000
-MAX_LENGTH=1024
+MAX_LENGTH=2048
 
 # Training configuration
 LEARNING_RATE=1e-4
