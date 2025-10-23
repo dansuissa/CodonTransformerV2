@@ -15,6 +15,7 @@ MAX_LENGTH=1024
 
 # Training configuration
 LEARNING_RATE=1e-4
+LEARNING_RATE_DECAY=0.1
 WARMUP_FRACTION=0.1
 MAX_EPOCHS=5
 BATCH_SIZE=32
@@ -37,21 +38,22 @@ SEED=23
 # Run training
 python train.py \
     --dataroot "$DATAROOT" \
-    --shard-pattern "$SHARD_PATTERN" \
-    --tokenizer-file "$TOKENIZER_FILE" \
-    --num-organisms "$NUM_ORGANISMS" \
-    --extra-organisms "$EXTRA_ORGANISMS" \
-    --max-length "$MAX_LENGTH" \
-    --learning-rate "$LEARNING_RATE" \
-    --warmup-fraction "$WARMUP_FRACTION" \
-    --max-epochs "$MAX_EPOCHS" \
-    --batch-size "$BATCH_SIZE" \
-    --num-workers "$NUM_WORKERS" \
-    --limit-train-batches "$LIMIT_TRAIN_BATCHES" \
-    --log-every-n-steps "$LOG_EVERY_N_STEPS" \
+    --shard_pattern "$SHARD_PATTERN" \
+    --tokenizer_file "$TOKENIZER_FILE" \
+    --num_organisms "$NUM_ORGANISMS" \
+    --extra_organisms "$EXTRA_ORGANISMS" \
+    --max_length "$MAX_LENGTH" \
+    --learning_rate "$LEARNING_RATE" \
+    --learning_rate_decay "$LEARNING_RATE_DECAY" \
+    --warmup_fraction "$WARMUP_FRACTION" \
+    --max_epochs "$MAX_EPOCHS" \
+    --batch_size "$BATCH_SIZE" \
+    --num_workers "$NUM_WORKERS" \
+    --limit_train_batches "$LIMIT_TRAIN_BATCHES" \
+    --log_every_n_steps "$LOG_EVERY_N_STEPS" \
     --strategy "$STRATEGY" \
     --devices "$DEVICES" \
     --precision "$PRECISION" \
-    --checkpoint-dir "$CHECKPOINT_DIR" \
-    --save-interval "$SAVE_INTERVAL" \
+    --checkpoint_dir "$CHECKPOINT_DIR" \
+    --save_interval "$SAVE_INTERVAL" \
     --seed "$SEED"

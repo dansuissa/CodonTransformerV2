@@ -29,20 +29,23 @@ class TrainHarness(pl.LightningModule):
         n_species: Total number of species/organisms to support
         learning_rate: Maximum learning rate for training
         warmup_fraction: Fraction of total steps for linear warmup (default: 0.1)
+        learning_rate_decay: Factor to decay the learning rate by (default: 0.1)
 
     Attributes:
         model: The underlying transformer model
         species_embed: Embedding layer for species-specific representations
         learning_rate: Learning rate for optimization
         warmup_fraction: Fraction of training for warmup phase
+        learning_rate_decay: Factor to decay the learning rate by
     """
 
-    def __init__(self, model, n_species, learning_rate, warmup_fraction):
+    def __init__(self, model, n_species, learning_rate, warmup_fraction, learning_rate_decay):
         super().__init__()
         self.model = model
         self.species_embed = nn.Embedding(n_species, model.config.hidden_size)
         self.learning_rate = learning_rate
         self.warmup_fraction = warmup_fraction
+        self.learning_rate_decay = learning_rate_decay
 
     def configure_optimizers(self):
         """
@@ -81,7 +84,7 @@ class TrainHarness(pl.LightningModule):
         decay = CosineAnnealingLR(
             optimizer,
             T_max=decay_steps,
-            eta_min=self.learning_rate * 0.1,
+            eta_min=self.learning_rate * self.learning_rate_decay,
         )
 
         # Combine warmup and decay
@@ -211,6 +214,7 @@ def main(args):
         n_species=args.num_organisms + args.extra_organisms,
         learning_rate=args.learning_rate,
         warmup_fraction=args.warmup_fraction,
+        learning_rate_decay=args.learning_rate_decay,
     )
 
     # Set up WebDataset pipeline for distributed training
@@ -259,33 +263,34 @@ if __name__ == "__main__":
     # Data arguments
     parser.add_argument("--dataroot", type=str, required=True, help="Root directory for data")
     parser.add_argument(
-        "--shard-pattern",
+        "--shard_pattern",
         type=str,
         default="shard-{000000..003863}.tar",
         help="Pattern for data shards",
     )
     parser.add_argument(
-        "--tokenizer-file",
+        "--tokenizer_file",
         type=str,
         default="data/codon_transformer_tokenizer.json",
         help="Path to tokenizer file",
     )
 
     # Model arguments
-    parser.add_argument("--num-organisms", type=int, default=4742, help="Number of organisms")
-    parser.add_argument("--extra-organisms", type=int, default=2000, help="Extra organism slots")
-    parser.add_argument("--max-length", type=int, default=1024, help="Maximum sequence length")
+    parser.add_argument("--num_organisms", type=int, default=4742, help="Number of organisms")
+    parser.add_argument("--extra_organisms", type=int, default=2000, help="Extra organism slots")
+    parser.add_argument("--max_length", type=int, default=1024, help="Maximum sequence length")
 
     # Training arguments
-    parser.add_argument("--learning-rate", type=float, default=1e-4, help="Learning rate")
-    parser.add_argument("--warmup-fraction", type=float, default=0.1, help="Warmup fraction")
-    parser.add_argument("--max-epochs", type=int, default=5, help="Maximum number of epochs")
-    parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
-    parser.add_argument("--num-workers", type=int, default=8, help="Number of data loader workers")
+    parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
+    parser.add_argument("--learning_rate_decay", type=float, default=0.1, help="Learning rate decay")
+    parser.add_argument("--warmup_fraction", type=float, default=0.1, help="Warmup fraction")
+    parser.add_argument("--max_epochs", type=int, default=5, help="Maximum number of epochs")
+    parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
+    parser.add_argument("--num_workers", type=int, default=8, help="Number of data loader workers")
     parser.add_argument(
-        "--limit-train-batches", type=int, default=400_000, help="Limit training batches"
+        "--limit_train_batches", type=int, default=400_000, help="Limit training batches"
     )
-    parser.add_argument("--log-every-n-steps", type=int, default=10, help="Log every n steps")
+    parser.add_argument("--log_every_n_steps", type=int, default=10, help="Log every n steps")
 
     # Hardware arguments
     parser.add_argument("--strategy", type=str, default="deepspeed", help="Training strategy")
@@ -294,10 +299,10 @@ if __name__ == "__main__":
 
     # Checkpoint arguments
     parser.add_argument(
-        "--checkpoint-dir", type=str, default=".", help="Directory to save checkpoints"
+        "--checkpoint_dir", type=str, default=".", help="Directory to save checkpoints"
     )
     parser.add_argument(
-        "--save-interval", type=int, default=1, help="Save checkpoint every N epochs (0 to disable)"
+        "--save_interval", type=int, default=1, help="Save checkpoint every N epochs (0 to disable)"
     )
 
     # Other arguments
