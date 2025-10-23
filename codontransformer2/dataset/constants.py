@@ -75,65 +75,80 @@ SYNONYMOUS_CODONS: dict[int, list[int]] = {
     26: [26, 28],  # K_AAA -> K_AAA, K_AAG
     27: [27, 29],  # N_AAC -> N_AAC, N_AAT
     28: [26, 28],  # K_AAG -> K_AAA, K_AAG
-    29: [27, 29],  # N_AAT -> N_AAT, N_AAC
+    29: [27, 29],  # N_AAT -> N_AAC, N_AAT
+
     30: [30, 31, 32, 33],  # T_ACA -> T_ACA, T_ACC, T_ACG, T_ACT
-    31: [30, 31, 32, 33],  # T_ACA -> T_ACA, T_ACC, T_ACG, T_ACT
-    32: [30, 31, 32, 33],  # T_ACA -> T_ACA, T_ACC, T_ACG, T_ACT
-    33: [30, 31, 32, 33],  # T_ACA -> T_ACA, T_ACC, T_ACG, T_ACT
-    34: [34, 36, 50, 51, 52, 53],  # R_CGA -> R_CGA, R_CGC, R_CGG, R_CGT
+    31: [30, 31, 32, 33],  # T_ACC -> T_ACA, T_ACC, T_ACG, T_ACT
+    32: [30, 31, 32, 33],  # T_ACG -> T_ACA, T_ACC, T_ACG, T_ACT
+    33: [30, 31, 32, 33],  # T_ACT -> T_ACA, T_ACC, T_ACG, T_ACT
+
+    34: [34, 36, 50, 51, 52, 53],  # R_AGA -> R_AGA, R_AGG, R_CGA, R_CGC, R_CGG, R_CGT
     35: [35, 37, 78, 79, 80, 81],  # S_AGC -> S_AGC, S_AGT, S_TCA, S_TCC, S_TCG, S_TCT
-    36: [34, 36, 50, 51, 52, 53],  # R_CGA -> R_CGA, R_CGC, R_CGG, R_CGT
-    37: [35, 37, 78, 79, 80, 81],  # S_AGC -> S_AGC, S_AGT, S_TCA, S_TCC, S_TCG, S_TCT
-    38: [38, 39, 41],  # I_ATA -> I_ATA, I_ATC
-    39: [38, 39, 41],  # I_ATA -> I_ATA, I_ATC
-    40: [40],  # M_ATG -> M_ATG
-    41: [38, 39, 41],  # I_ATA -> I_ATA, I_ATC
+    36: [34, 36, 50, 51, 52, 53],  # R_AGG -> R_AGA, R_AGG, R_CGA, R_CGC, R_CGG, R_CGT
+    37: [35, 37, 78, 79, 80, 81],  # S_AGT -> S_AGC, S_AGT, S_TCA, S_TCC, S_TCG, S_TCT
+
+    38: [38, 39, 41],  # I_ATA -> I_ATA, I_ATC, I_ATT
+    39: [38, 39, 41],  # I_ATC -> I_ATA, I_ATC, I_ATT
+    40: [40],          # M_ATG -> M_ATG
+    41: [38, 39, 41],  # I_ATT -> I_ATA, I_ATC, I_ATT
+
     42: [42, 44],  # Q_CAA -> Q_CAA, Q_CAG
     43: [43, 45],  # H_CAC -> H_CAC, H_CAT
-    44: [42, 44],  # Q_CAA -> Q_CAA, Q_CAG
-    45: [43, 45],  # H_CAC -> H_CAC, H_CAT
+    44: [42, 44],  # Q_CAG -> Q_CAA, Q_CAG
+    45: [43, 45],  # H_CAT -> H_CAC, H_CAT
+
     46: [46, 47, 48, 49],  # P_CCA -> P_CCA, P_CCC, P_CCG, P_CCT
-    47: [46, 47, 48, 49],  # P_CCA -> P_CCA, P_CCC, P_CCG, P_CCT
-    48: [46, 47, 48, 49],  # P_CCA -> P_CCA, P_CCC, P_CCG, P_CCT
-    49: [46, 47, 48, 49],  # P_CCA -> P_CCA, P_CCC, P_CCG, P_CCT
-    50: [34, 36, 50, 51, 52, 53],  # R_CGA -> R_CGA, R_CGC, R_CGG, R_CGT
-    51: [34, 36, 50, 51, 52, 53],  # R_CGA -> R_CGA, R_CGC, R_CGG, R_CGT
-    52: [34, 36, 50, 51, 52, 53],  # R_CGA -> R_CGA, R_CGC, R_CGG, R_CGT
-    53: [34, 36, 50, 51, 52, 53],  # R_CGA -> R_CGA, R_CGC, R_CGG, R_CGT
-    54: [54, 55, 56, 57, 86, 88],  # L_CTA -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTG, L_TTT
-    55: [54, 55, 56, 57, 86, 88],  # L_CTA -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTG, L_TTT
-    56: [54, 55, 56, 57, 86, 88],  # L_CTA -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTG, L_TTT
-    57: [54, 55, 56, 57, 86, 88],  # L_CTA -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTG, L_TTT
+    47: [46, 47, 48, 49],  # P_CCC -> P_CCA, P_CCC, P_CCG, P_CCT
+    48: [46, 47, 48, 49],  # P_CCG -> P_CCA, P_CCC, P_CCG, P_CCT
+    49: [46, 47, 48, 49],  # P_CCT -> P_CCA, P_CCC, P_CCG, P_CCT
+
+    50: [34, 36, 50, 51, 52, 53],  # R_CGA -> R_AGA, R_AGG, R_CGA, R_CGC, R_CGG, R_CGT
+    51: [34, 36, 50, 51, 52, 53],  # R_CGC -> R_AGA, R_AGG, R_CGA, R_CGC, R_CGG, R_CGT
+    52: [34, 36, 50, 51, 52, 53],  # R_CGG -> R_AGA, R_AGG, R_CGA, R_CGC, R_CGG, R_CGT
+    53: [34, 36, 50, 51, 52, 53],  # R_CGT -> R_AGA, R_AGG, R_CGA, R_CGC, R_CGG, R_CGT
+
+    54: [54, 55, 56, 57, 86, 88],  # L_CTA -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTA, L_TTG
+    55: [54, 55, 56, 57, 86, 88],  # L_CTC -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTA, L_TTG
+    56: [54, 55, 56, 57, 86, 88],  # L_CTG -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTA, L_TTG
+    57: [54, 55, 56, 57, 86, 88],  # L_CTT -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTA, L_TTG
+
     58: [58, 60],  # E_GAA -> E_GAA, E_GAG
     59: [59, 61],  # D_GAC -> D_GAC, D_GAT
-    60: [58, 60],  # E_GAA -> E_GAA, E_GAG
-    61: [59, 61],  # D_GAC -> D_GAC, D_GAT
+    60: [58, 60],  # E_GAG -> E_GAA, E_GAG
+    61: [59, 61],  # D_GAT -> D_GAC, D_GAT
+
     62: [62, 63, 64, 65],  # A_GCA -> A_GCA, A_GCC, A_GCG, A_GCT
-    63: [62, 63, 64, 65],  # A_GCA -> A_GCA, A_GCC, A_GCG, A_GCT
-    64: [62, 63, 64, 65],  # A_GCA -> A_GCA, A_GCC, A_GCG, A_GCT
-    65: [62, 63, 64, 65],  # A_GCA -> A_GCA, A_GCC, A_GCG, A_GCT
+    63: [62, 63, 64, 65],  # A_GCC -> A_GCA, A_GCC, A_GCG, A_GCT
+    64: [62, 63, 64, 65],  # A_GCG -> A_GCA, A_GCC, A_GCG, A_GCT
+    65: [62, 63, 64, 65],  # A_GCT -> A_GCA, A_GCC, A_GCG, A_GCT
+
     66: [66, 67, 68, 69],  # G_GGA -> G_GGA, G_GGC, G_GGG, G_GGT
-    67: [66, 67, 68, 69],  # G_GGA -> G_GGA, G_GGC, G_GGG, G_GGT
-    68: [66, 67, 68, 69],  # G_GGA -> G_GGA, G_GGC, G_GGG, G_GGT
-    69: [66, 67, 68, 69],  # G_GGA -> G_GGA, G_GGC, G_GGG, G_GGT
+    67: [66, 67, 68, 69],  # G_GGC -> G_GGA, G_GGC, G_GGG, G_GGT
+    68: [66, 67, 68, 69],  # G_GGG -> G_GGA, G_GGC, G_GGG, G_GGT
+    69: [66, 67, 68, 69],  # G_GGT -> G_GGA, G_GGC, G_GGG, G_GGT
+
     70: [70, 71, 72, 73],  # V_GTA -> V_GTA, V_GTC, V_GTG, V_GTT
-    71: [70, 71, 72, 73],  # V_GTA -> V_GTA, V_GTC, V_GTG, V_GTT
-    72: [70, 71, 72, 73],  # V_GTA -> V_GTA, V_GTC, V_GTG, V_GTT
-    73: [70, 71, 72, 73],  # V_GTA -> V_GTA, V_GTC, V_GTG, V_GTT
-    74: [74, 76, 82],  # __TAA -> __TAA, __TAG
-    75: [75, 77],  # Y_TAC -> Y_TAC, Y_TAT
-    76: [74, 76, 82],  # __TAA -> __TAA, __TAG
-    77: [75, 77],  # Y_TAC -> Y_TAC, Y_TAT
-    78: [35, 37, 78, 79, 80, 81],  # S_TCA -> S_TCA, S_TCG, S_TCT
-    79: [35, 37, 78, 79, 80, 81],  # S_TCA -> S_TCA, S_TCG, S_TCT
-    80: [35, 37, 78, 79, 80, 81],  # S_TCA -> S_TCA, S_TCG, S_TCT
-    81: [35, 37, 78, 79, 80, 81],  # S_TCA -> S_TCA, S_TCG, S_TCT
-    82: [74, 76, 82],  # __TAA -> __TAA, __TAG
-    83: [83, 85],  # C_TGC -> C_TGC, C_TGT
-    84: [84],  # W_TGG -> W_TGG
-    85: [83, 85],  # C_TGC -> C_TGC, C_TGT
-    86: [54, 55, 56, 57, 86, 88],  # L_CTA -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTG, L_TTT
-    87: [87, 89],  # F_TTC -> F_TTC, F_TTT
-    88: [54, 55, 56, 57, 86, 88],  # L_CTA -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTG, L_TTT
-    89: [87, 89],  # F_TTC -> F_TTC, F_TTT
+    71: [70, 71, 72, 73],  # V_GTC -> V_GTA, V_GTC, V_GTG, V_GTT
+    72: [70, 71, 72, 73],  # V_GTG -> V_GTA, V_GTC, V_GTG, V_GTT
+    73: [70, 71, 72, 73],  # V_GTT -> V_GTA, V_GTC, V_GTG, V_GTT
+
+    74: [74, 76, 82],  # __TAA -> __TAA, __TAG, __TGA (STOP)
+    75: [75, 77],      # Y_TAC -> Y_TAC, Y_TAT
+    76: [74, 76, 82],  # __TAG -> __TAA, __TAG, __TGA (STOP)
+    77: [75, 77],      # Y_TAT -> Y_TAC, Y_TAT
+
+    78: [35, 37, 78, 79, 80, 81],  # S_TCA -> S_AGC, S_AGT, S_TCA, S_TCC, S_TCG, S_TCT
+    79: [35, 37, 78, 79, 80, 81],  # S_TCC -> S_AGC, S_AGT, S_TCA, S_TCC, S_TCG, S_TCT
+    80: [35, 37, 78, 79, 80, 81],  # S_TCG -> S_AGC, S_AGT, S_TCA, S_TCC, S_TCG, S_TCT
+    81: [35, 37, 78, 79, 80, 81],  # S_TCT -> S_AGC, S_AGT, S_TCA, S_TCC, S_TCG, S_TCT
+
+    82: [74, 76, 82],  # __TGA -> __TAA, __TAG, __TGA (STOP)
+    83: [83, 85],      # C_TGC -> C_TGC, C_TGT
+    84: [84],          # W_TGG -> W_TGG
+    85: [83, 85],      # C_TGT -> C_TGC, C_TGT
+
+    86: [54, 55, 56, 57, 86, 88],  # L_TTA -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTA, L_TTG
+    87: [87, 89],                  # F_TTC -> F_TTC, F_TTT
+    88: [54, 55, 56, 57, 86, 88],  # L_TTG -> L_CTA, L_CTC, L_CTG, L_CTT, L_TTA, L_TTG
+    89: [87, 89],                  # F_TTT -> F_TTC, F_TTT
 }
