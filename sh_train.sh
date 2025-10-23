@@ -17,6 +17,7 @@ MAX_LENGTH=2048
 LEARNING_RATE=1e-4
 LEARNING_RATE_DECAY=0.1
 WARMUP_FRACTION=0.1
+WEIGHT_DECAY=0.01
 MAX_EPOCHS=5
 BATCH_SIZE=32
 NUM_WORKERS=8
@@ -46,6 +47,7 @@ python train.py \
     --learning_rate "$LEARNING_RATE" \
     --learning_rate_decay "$LEARNING_RATE_DECAY" \
     --warmup_fraction "$WARMUP_FRACTION" \
+    --weight_decay "$WEIGHT_DECAY" \
     --max_epochs "$MAX_EPOCHS" \
     --batch_size "$BATCH_SIZE" \
     --num_workers "$NUM_WORKERS" \

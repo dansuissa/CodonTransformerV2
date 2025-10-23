@@ -30,6 +30,7 @@ class TrainHarness(pl.LightningModule):
         learning_rate: Maximum learning rate for training
         warmup_fraction: Fraction of total steps for linear warmup (default: 0.1)
         learning_rate_decay: Factor to decay the learning rate by (default: 0.1)
+        weight_decay: Weight decay for optimizer (default: 0.01)
 
     Attributes:
         model: The underlying transformer model
@@ -37,15 +38,17 @@ class TrainHarness(pl.LightningModule):
         learning_rate: Learning rate for optimization
         warmup_fraction: Fraction of training for warmup phase
         learning_rate_decay: Factor to decay the learning rate by
+        weight_decay: Weight decay for optimizer
     """
 
-    def __init__(self, model, n_species, learning_rate, warmup_fraction, learning_rate_decay):
+    def __init__(self, model, n_species, learning_rate, warmup_fraction, learning_rate_decay, weight_decay):
         super().__init__()
         self.model = model
         self.species_embed = nn.Embedding(n_species, model.config.hidden_size)
         self.learning_rate = learning_rate
         self.warmup_fraction = warmup_fraction
         self.learning_rate_decay = learning_rate_decay
+        self.weight_decay = weight_decay
 
     def training_step(self, batch, batch_idx):
         """
@@ -100,6 +103,7 @@ class TrainHarness(pl.LightningModule):
         optimizer = AdamW(
             self.parameters(),
             lr=self.learning_rate,
+            weight_decay=self.weight_decay,
         )
 
         total_steps = self.trainer.estimated_stepping_batches
@@ -215,6 +219,7 @@ def main(args):
         learning_rate=args.learning_rate,
         warmup_fraction=args.warmup_fraction,
         learning_rate_decay=args.learning_rate_decay,
+        weight_decay=args.weight_decay,
     )
 
     # Set up WebDataset pipeline for distributed training
@@ -286,6 +291,7 @@ if __name__ == "__main__":
         "--learning_rate_decay", type=float, default=0.1, help="Learning rate decay"
     )
     parser.add_argument("--warmup_fraction", type=float, default=0.1, help="Warmup fraction")
+    parser.add_argument("--weight_decay", type=float, default=0.01, help="Weight decay")
     parser.add_argument("--max_epochs", type=int, default=5, help="Maximum number of epochs")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
     parser.add_argument("--num_workers", type=int, default=8, help="Number of data loader workers")
