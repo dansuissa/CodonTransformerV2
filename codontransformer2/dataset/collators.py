@@ -162,8 +162,8 @@ class MaskedTokenizerCollator:
         inputs = tokenized["input_ids"]
         targets = inputs.clone()
 
-        # Select 30% of tokens for masking (excluding special tokens)
-        prob_matrix = torch.full(inputs.shape, 0.30)
+        # Select 15% of tokens for masking (excluding special tokens)
+        prob_matrix = torch.full(inputs.shape, 0.15)
         # Leave special tokens and pads as they are.
         prob_matrix[inputs < 5] = 0.0
         selected = torch.bernoulli(prob_matrix).bool()
