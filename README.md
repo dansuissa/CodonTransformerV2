@@ -1,1 +1,1 @@
-# CodonTransformerV2
+# CodonTransformer2
