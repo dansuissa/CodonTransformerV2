@@ -47,6 +47,45 @@ class TrainHarness(pl.LightningModule):
         self.warmup_fraction = warmup_fraction
         self.learning_rate_decay = learning_rate_decay
 
+    def training_step(self, batch, batch_idx):
+        """
+        Perform a single training step with species-conditioned masked language modeling.
+
+        Args:
+            batch: Dictionary containing:
+                - input_ids: Tokenized codon sequences [B, L]
+                - species_id: Species identifiers [B]
+                - attention_mask: Attention mask [B, L]
+                - labels: Target labels for masked tokens [B, L]
+            batch_idx: Index of the current batch
+
+        Returns:
+            torch.Tensor: Loss value for this batch
+        """
+        # Get token embeddings and add species-specific information
+        token_embeds = self.model.get_input_embeddings()(batch["input_ids"])
+        sp_vec = self.species_embed(batch["species_id"])  # [B, H]
+        sp_vec = sp_vec.unsqueeze(1).expand_as(token_embeds)  # [B, L, H]
+        token_embeds = token_embeds + sp_vec
+
+        # Forward pass through the model
+        outputs = self.model(
+            inputs_embeds=token_embeds,
+            attention_mask=batch["attention_mask"],
+            labels=batch["labels"],
+        )
+
+        # Log metrics
+        self.log_dict(
+            dictionary={
+                "loss": outputs.loss,
+                "lr": self.trainer.optimizers[0].param_groups[0]["lr"],
+            },
+            on_step=True,
+            prog_bar=True,
+        )
+        return outputs.loss
+
     def configure_optimizers(self):
         """
         Configure AdamW optimizer with linear warmup and cosine decay schedule.
@@ -95,45 +134,6 @@ class TrainHarness(pl.LightningModule):
         )
 
         return [optimizer], [{"scheduler": scheduler, "interval": "step"}]
-
-    def training_step(self, batch, batch_idx):
-        """
-        Perform a single training step with species-conditioned masked language modeling.
-
-        Args:
-            batch: Dictionary containing:
-                - input_ids: Tokenized codon sequences [B, L]
-                - species_id: Species identifiers [B]
-                - attention_mask: Attention mask [B, L]
-                - labels: Target labels for masked tokens [B, L]
-            batch_idx: Index of the current batch
-
-        Returns:
-            torch.Tensor: Loss value for this batch
-        """
-        # Get token embeddings and add species-specific information
-        token_embeds = self.model.get_input_embeddings()(batch["input_ids"])
-        sp_vec = self.species_embed(batch["species_id"])  # [B, H]
-        sp_vec = sp_vec.unsqueeze(1).expand_as(token_embeds)  # [B, L, H]
-        token_embeds = token_embeds + sp_vec
-
-        # Forward pass through the model
-        outputs = self.model(
-            inputs_embeds=token_embeds,
-            attention_mask=batch["attention_mask"],
-            labels=batch["labels"],
-        )
-
-        # Log metrics
-        self.log_dict(
-            dictionary={
-                "loss": outputs.loss,
-                "lr": self.trainer.optimizers[0].param_groups[0]["lr"],
-            },
-            on_step=True,
-            prog_bar=True,
-        )
-        return outputs.loss
 
 
 class EpochCheckpoint(pl.Callback):
@@ -282,7 +282,9 @@ if __name__ == "__main__":
 
     # Training arguments
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
-    parser.add_argument("--learning_rate_decay", type=float, default=0.1, help="Learning rate decay")
+    parser.add_argument(
+        "--learning_rate_decay", type=float, default=0.1, help="Learning rate decay"
+    )
     parser.add_argument("--warmup_fraction", type=float, default=0.1, help="Warmup fraction")
     parser.add_argument("--max_epochs", type=int, default=5, help="Maximum number of epochs")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
