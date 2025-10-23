@@ -1,4 +1,5 @@
 import json
+
 import torch
 
 TOKEN2MASK: dict[int, int] = {
@@ -67,6 +68,7 @@ TOKEN2MASK: dict[int, int] = {
     88: 14,  # L_TTG -> L*
     89: 9,  # F_TTT -> F*
 }
+
 
 class MaskedTokenizerCollator:
     def __init__(self, tokenizer):
