@@ -44,6 +44,7 @@ class TrainHarness(pl.LightningModule):
     def __init__(self, model, n_species, learning_rate, warmup_fraction, learning_rate_decay, weight_decay):
         super().__init__()
         self.model = model
+        self.save_hyperparameters(ignore=["model"])  #a huge quality-of-life improvement :) 
         self.species_embed = nn.Embedding(n_species, model.config.hidden_size)
         self.learning_rate = learning_rate
         self.warmup_fraction = warmup_fraction
