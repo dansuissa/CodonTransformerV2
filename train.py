@@ -50,6 +50,16 @@ class TrainHarness(pl.LightningModule):
         self.learning_rate_decay = learning_rate_decay
         self.weight_decay = weight_decay
 
+    """from my previous experince with lightning, calling trainer.optimizers
+    can be wrapped-unstable under dp and at inittial steps it may not be available as a torch-compatible opt so i defined this function for handling opt-calling"""
+
+    def _get_lr(self):
+       opt = self.optimizers()
+      # if lightnibg returns a list of opts
+       if isinstance(opt, (list, tuple)):
+         opt = opt[0]
+       return opt.param_groups[0].get("lr", None)
+
     def training_step(self, batch, batch_idx):
         """
         Perform a single training step with species-conditioned masked language modeling.
@@ -82,11 +92,14 @@ class TrainHarness(pl.LightningModule):
         self.log_dict(
             dictionary={
                 "loss": outputs.loss,
-                "lr": self.trainer.optimizers[0].param_groups[0]["lr"],
+                "lr": self._get_lr(),
             },
             on_step=True,
             prog_bar=True,
+            #sync_dist=True, usually keeps logged scalars consistent across multiple gpu ranks
+            sync_dist=True
         )
+
         return outputs.loss
 
     def configure_optimizers(self):
