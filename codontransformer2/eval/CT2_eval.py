@@ -34,7 +34,7 @@ def masked_loss_from_logits(logits: torch.Tensor,labels: torch.Tensor,ignore_ind
 
 
 @torch.no_grad()
-def masked_synonymous_accuracy(logits: torch.Tensor,labels: torch.Tensor,codon_id_to_aa_id: torch.Tensor,  # [V] -> aa_id (or -1)k: int = 1,ignore_index: int = IGNORE_INDEX,) -> torch.Tensor:
+def masked_synonymous_accuracy(logits: torch.Tensor,labels: torch.Tensor,codon_id_to_aa_id: torch.Tensor, k: int = 1,ignore_index: int = IGNORE_INDEX,) -> torch.Tensor:
 
     mask = labels.ne(ignore_index)  # [B,L]
     denom = mask.sum().clamp_min(1).to(logits.dtype)
