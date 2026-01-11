@@ -12,7 +12,7 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from torch.utils.data import DataLoader, IterableDataset
 from transformers import ModernBertConfig, ModernBertForMaskedLM, PreTrainedTokenizerFast
-from codontransformer2.dataset.collator import MaskedTokenizerCollator
+from codontransformer2.dataset.collators import MaskedTokenizerCollator
 from codontransformer2.dataset.constants import TOKEN2MASK
 from codontransformer2.eval.CT2_eval import (
     build_species_buckets,
