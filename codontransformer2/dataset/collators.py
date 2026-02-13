@@ -6,7 +6,6 @@ for training codon sequence models.
 """
 
 import json
-
 import torch
 
 from codontransformer2.dataset.constants import SYNONYMOUS_CODONS, TOKEN2MASK
@@ -16,39 +15,26 @@ class MaskedTokenizerCollator:
     """
     Collator for masked language modeling on codon sequences.
 
-    Implements a masking strategy for training codon prediction models:
-    - mlm_probability (default 15%) of tokens are selected for masking
+    Masking strategy:
+    - mlm_probability of (non-special) tokens are selected
     - Of selected tokens:
-        - 80% are replaced with amino acid mask tokens (e.g., K_AAA -> K*)
-        - 10% are replaced with [MASK] token
-        - 5% are replaced with random codon tokens from synonym list
-        - 5% are kept unchanged
+        - 80% replaced with amino-acid mask tokens via TOKEN2MASK lookup (e.g., K_AAA -> K*)
+        - 10% replaced with [MASK]
+        - 5% replaced with random synonymous codon token (same amino acid)
+        - 5% kept unchanged
 
-    This strategy enables the model to learn organism-specific codon usage patterns
-    by predicting the original codon from masked amino acid representations.
-
-    Key fixes vs previous version:
-    - Supports both "seq" and "dna_sequence" JSON keys (your datasets use both).
-    - Supports species name -> id mapping via species_to_id (instead of int(species)).
-    - Supports unknown_species_id + max_species_id bounds checking.
-    - Adds species_dropout_prob (replace species_id with unknown slot).
-    - token2mask_tensor is sized to vocab_size (instead of hard-coded 90).
-    - Excludes special tokens by explicit token IDs (instead of inputs < 5).
-    - Optional trimming to a multiple of 3 to avoid partial codons at the end.
+    IMPORTANT: This collator builds input tokens as "AA_CODON" (e.g., "M_ATG"),
+    using BOTH protein_sequence + dna_sequence when available. This matches the
+    90-vocab CodonTransformerTokenizer / TOKEN2MASK + SYNONYMOUS_CODONS tables.
 
     Args:
-        tokenizer: HuggingFace tokenizer for codon sequences
+        tokenizer: HuggingFace tokenizer for codon sequences (must have mask_token_id)
         species_to_id: Optional dict mapping species string -> int id
         unknown_species_id: Species id used for "unknown" / dropped-out species
         max_species_id: Optional upper bound; if out of range => unknown_species_id
         species_dropout_prob: Probability to replace species_id with unknown_species_id
         mlm_probability: Probability to select a token for masking (default 0.15)
         trim_to_multiple_of_3: If True, drops trailing bases so length is multiple of 3
-
-    Attributes:
-        tokenizer: The codon tokenizer instance
-        mask_token_id: Token ID for [MASK] from tokenizer
-        token2mask_tensor: Lookup tensor mapping codon IDs to amino acid mask IDs
     """
 
     def __init__(
@@ -62,38 +48,26 @@ class MaskedTokenizerCollator:
         mlm_probability: float = 0.15,
         trim_to_multiple_of_3: bool = True,
     ):
-        """
-        Initialize the collator with a codon tokenizer.
-
-        Args:
-            tokenizer: PreTrainedTokenizerFast instance for codon sequences
-            species_to_id: Optional mapping from species string to integer id.
-            unknown_species_id: id to use when species is missing/unmapped/out-of-range.
-            max_species_id: if set, enforces 0 <= species_id < max_species_id.
-            species_dropout_prob: probability to replace species_id with unknown_species_id.
-            mlm_probability: fraction of (non-special) tokens selected for masking.
-            trim_to_multiple_of_3: remove trailing bases so we only form full codons.
-
-        Returns:
-            None
-        """
         self.tokenizer = tokenizer
         self.mask_token_id = tokenizer.mask_token_id
+        if self.mask_token_id is None:
+            raise ValueError(
+                "tokenizer.mask_token_id is None. Configure/add a [MASK] token on the tokenizer before using this collator."
+            )
 
-        # --- Species handling (NEW) ---
+        # Species handling
         self.species_to_id = species_to_id
         self.unknown_species_id = int(unknown_species_id)
         self.max_species_id = max_species_id
         self.species_dropout_prob = float(species_dropout_prob)
 
-        # --- Masking hyperparam (NEW) ---
+        # Masking hyperparam
         self.mlm_probability = float(mlm_probability)
 
-        # --- Sequence hygiene (NEW) ---
+        # Sequence hygiene
         self.trim_to_multiple_of_3 = bool(trim_to_multiple_of_3)
 
-        # Create a tensor lookup table for masking.
-        # FIX: Previously this was hard-coded to 90 and could crash if vocab_size != 90.
+        # token2mask lookup sized to full vocab
         vocab_size = len(tokenizer)
         self.token2mask_tensor = torch.arange(vocab_size, dtype=torch.long)
         for codon_id, aa_mask_id in TOKEN2MASK.items():
@@ -101,8 +75,7 @@ class MaskedTokenizerCollator:
             if 0 <= codon_id < vocab_size:
                 self.token2mask_tensor[codon_id] = int(aa_mask_id)
 
-        # FIX: Previously special tokens were excluded via `inputs < 5`, which is fragile.
-        # Now we exclude by explicit token IDs.
+        # Exclude special tokens by explicit token IDs
         self._special_ids = set()
         for tid in (
             tokenizer.pad_token_id,
@@ -114,16 +87,6 @@ class MaskedTokenizerCollator:
                 self._special_ids.add(int(tid))
 
     def _to_species_id(self, raw_species):
-        """
-        Convert raw species field to an integer id.
-
-        Accepts:
-        - int
-        - numeric string
-        - species name string (if species_to_id is provided)
-
-        If missing/unmapped/out-of-range => unknown_species_id.
-        """
         sid = self.unknown_species_id
 
         if raw_species is None:
@@ -140,7 +103,6 @@ class MaskedTokenizerCollator:
                 except ValueError:
                     sid = self.unknown_species_id
 
-        # Bounds check if requested
         if self.max_species_id is not None:
             if not (0 <= int(sid) < int(self.max_species_id)):
                 sid = self.unknown_species_id
@@ -148,60 +110,58 @@ class MaskedTokenizerCollator:
         return int(sid)
 
     def __call__(self, examples):
-        """
-        Process a batch of examples with masking for MLM training.
-
-        Takes raw DNA sequences with species metadata, splits into codons,
-        tokenizes, and applies masking strategy for training.
-
-        Args:
-            examples: List of dictionaries from WebDataset, each containing:
-                - "json": JSON string/bytes with fields:
-                    - "seq" or "dna_sequence": DNA sequence string (e.g., "ATGGCATAG...")
-                    - "species": species identifier; can be numeric id OR species name
-                               (name -> id requires species_to_id)
-
-        Returns:
-            dict: Batch dictionary with tensors:
-                - input_ids: Masked token IDs [batch_size, seq_len]
-                - attention_mask: Attention mask [batch_size, seq_len]
-                - labels: Target token IDs for loss computation [batch_size, seq_len]
-                          (-100 for unmasked positions)
-                - species_id: Species identifiers [batch_size]
-        """
         list_of_species: list[int] = []
-        list_of_codons: list[str] = []
+        list_of_texts: list[str] = []
 
-        # Parse sequences and split into space-separated codons
         for ex in examples:
-            doc = json.loads(ex["json"])
+            raw = ex["json"]
+            if isinstance(raw, (bytes, bytearray)):
+                raw = raw.decode("utf-8", errors="replace")
+            doc = json.loads(raw)
 
-            # FIX: Support both keys ("seq" in shards, "dna_sequence" in per-organism JSONs)
-            seq = doc.get("seq", None)
-            if seq is None:
-                seq = doc.get("dna_sequence", None)
-            if seq is None:
+            dna = doc.get("dna_sequence") or doc.get("seq")
+            prot = doc.get("protein_sequence")
+
+            if dna is None:
                 continue
 
-            # FIX: Optional trimming to avoid a trailing incomplete codon (helps reduce [UNK])
+            # Optional trimming (safe even if already divisible by 3)
             if self.trim_to_multiple_of_3:
-                seq = seq[: (len(seq) // 3) * 3]
-                if len(seq) == 0:
+                dna = dna[: (len(dna) // 3) * 3]
+                if len(dna) == 0:
                     continue
 
-            # Use a generator expression to avoid creating new strings.
-            codons = " ".join(seq[i : i + 3] for i in range(0, len(seq), 3))
+            # Build AA_CODON tokens if protein_sequence exists
+            if prot is not None:
+                n_codons = min(len(dna) // 3, len(prot))
+                if n_codons == 0:
+                    continue
 
-            # FIX: Species can be name string -> map; also supports unknown/bounds-check
+                toks = []
+                for i in range(n_codons):
+                    codon = dna[3 * i : 3 * i + 3].upper()
+                    aa = prot[i]
+
+                    # Stop handling (rare in your shards, but safe)
+                    if aa in ("*", "_"):
+                        toks.append(f"__{codon}")     # "__TAA"
+                    else:
+                        toks.append(f"{aa}_{codon}")  # "M_ATG"
+
+                text = " ".join(toks)
+            else:
+                # Fallback if protein_sequence is missing
+                text = " ".join(dna[i : i + 3].upper() for i in range(0, len(dna), 3))
+
             list_of_species.append(self._to_species_id(doc.get("species", None)))
-            list_of_codons.append(codons)
+            list_of_texts.append(text)
 
-        # Tokenize codon sequences
+        # Tokenize
         tokenized = self.tokenizer(
-            list_of_codons,
+            list_of_texts,
             return_attention_mask=True,
             return_token_type_ids=False,
-            truncation=True,
+            truncation=False,   # avoids "no max length" warning unless you set max_length
             padding=True,
             return_tensors="pt",
         )
@@ -212,7 +172,6 @@ class MaskedTokenizerCollator:
         # Select mlm_probability of tokens for masking (excluding special tokens)
         prob_matrix = torch.full(inputs.shape, self.mlm_probability)
 
-        # FIX: Exclude special tokens by explicit ids (pad/cls/sep/unk), not by `inputs < 5`.
         special_mask = torch.zeros_like(inputs, dtype=torch.bool)
         for tid in self._special_ids:
             special_mask |= (inputs == tid)
@@ -220,17 +179,15 @@ class MaskedTokenizerCollator:
 
         selected = torch.bernoulli(prob_matrix).bool()
 
-        # 80% of the time, selected input tokens are replaced with amino acid mask tokens.
+        # 80% -> amino-acid mask token via lookup
         replaced = torch.bernoulli(torch.full(selected.shape, 0.8)).bool() & selected
         inputs[replaced] = self.token2mask_tensor[inputs[replaced]]
 
-        # 10% of the time, selected tokens are replaced with [MASK] token.
-        # (half of the remaining 20% of selected tokens)
+        # 10% -> [MASK] token (half of remaining 20%)
         mask_token = torch.bernoulli(torch.full(selected.shape, 0.5)).bool() & selected & ~replaced
         inputs[mask_token] = self.mask_token_id
 
-        # 5% of the time, replace with a random synonymous codon (same amino acid).
-        # (half of the remaining 10% of selected tokens)
+        # 5% -> random synonymous codon (half of remaining 10%)
         random_synonym_mask = (
             torch.bernoulli(torch.full(selected.shape, 0.5)).bool()
             & selected
@@ -240,18 +197,15 @@ class MaskedTokenizerCollator:
         for batch_index, token_index in random_synonym_mask.nonzero(as_tuple=False):
             original_token_id = int(targets[batch_index, token_index])
             synonym_candidates = SYNONYMOUS_CODONS.get(original_token_id, [original_token_id])
-            sampled_index = torch.randint(0, len(synonym_candidates), (1,)).item()
-            new_token_id = synonym_candidates[sampled_index]
+            new_token_id = synonym_candidates[torch.randint(0, len(synonym_candidates), (1,)).item()]
             inputs[batch_index, token_index] = new_token_id
 
-        # Remaining 5% of selected tokens stay unchanged (handled implicitly).
+        # Labels: only masked positions contribute
         tokenized["input_ids"] = inputs
         tokenized["labels"] = torch.where(selected, targets, -100)
 
-        # Convert species IDs to tensor
+        # Species tensor (+ optional dropout)
         species_ids = torch.tensor(list_of_species, dtype=torch.long)
-
-        # FIX: Species dropout (NEW) replace some species_ids with unknown_species_id
         if self.species_dropout_prob > 0.0:
             drop = torch.rand(species_ids.shape) < self.species_dropout_prob
             species_ids = torch.where(
@@ -259,7 +213,6 @@ class MaskedTokenizerCollator:
                 torch.full_like(species_ids, self.unknown_species_id),
                 species_ids,
             )
-
         tokenized["species_id"] = species_ids
 
         return tokenized
