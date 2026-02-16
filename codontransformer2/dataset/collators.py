@@ -18,14 +18,14 @@ class MaskedTokenizerCollator:
     Masking strategy:
     - mlm_probability of (non-special) tokens are selected
     - Of selected tokens:
-        - 80% replaced with amino-acid mask tokens via TOKEN2MASK lookup (e.g., K_AAA -> K*)
+        - 80% replaced with amino-acid mask tokens via TOKEN2MASK lookup (e.g., k_aaa -> k*)
         - 10% replaced with [MASK]
         - 5% replaced with random synonymous codon token (same amino acid)
         - 5% kept unchanged
 
-    IMPORTANT: This collator builds input tokens as "AA_CODON" (e.g., "M_ATG"),
+    IMPORTANT: This collator builds input tokens as "aa_codon" (e.g., "m_atg"),
     using BOTH protein_sequence + dna_sequence when available. This matches the
-    90-vocab CodonTransformerTokenizer / TOKEN2MASK + SYNONYMOUS_CODONS tables.
+    lowercase CodonTransformerTokenizer you have (vocab uses m_atg, k_aaa, __taa, ...).
 
     Args:
         tokenizer: HuggingFace tokenizer for codon sequences (must have mask_token_id)
@@ -131,7 +131,7 @@ class MaskedTokenizerCollator:
                 if len(dna) == 0:
                     continue
 
-            # Build AA_CODON tokens if protein_sequence exists
+            # Build aa_codon tokens if protein_sequence exists
             if prot is not None:
                 n_codons = min(len(dna) // 3, len(prot))
                 if n_codons == 0:
@@ -139,29 +139,39 @@ class MaskedTokenizerCollator:
 
                 toks = []
                 for i in range(n_codons):
-                    codon = dna[3 * i : 3 * i + 3].upper()
-                    aa = prot[i]
+                    codon = dna[3 * i : 3 * i + 3].lower()
+                    aa = prot[i].lower()
 
                     # Stop handling (rare in your shards, but safe)
                     if aa in ("*", "_"):
-                        toks.append(f"__{codon}")     # "__TAA"
+                        toks.append(f"__{codon}")     # "__taa"
                     else:
-                        toks.append(f"{aa}_{codon}")  # "M_ATG"
+                        toks.append(f"{aa}_{codon}")  # "m_atg"
 
                 text = " ".join(toks)
             else:
                 # Fallback if protein_sequence is missing
-                text = " ".join(dna[i : i + 3].upper() for i in range(0, len(dna), 3))
+                text = " ".join(dna[i : i + 3].lower() for i in range(0, len(dna), 3))
 
             list_of_species.append(self._to_species_id(doc.get("species", None)))
             list_of_texts.append(text)
+
+        if len(list_of_texts) == 0:
+            # DataLoader will interpret an empty dict as "skip"
+            # but returning an empty batch is usually less confusing.
+            return {
+                "input_ids": torch.empty((0, 0), dtype=torch.long),
+                "attention_mask": torch.empty((0, 0), dtype=torch.long),
+                "labels": torch.empty((0, 0), dtype=torch.long),
+                "species_id": torch.empty((0,), dtype=torch.long),
+            }
 
         # Tokenize
         tokenized = self.tokenizer(
             list_of_texts,
             return_attention_mask=True,
             return_token_type_ids=False,
-            truncation=False,   # avoids "no max length" warning unless you set max_length
+            truncation=False,  # avoids "no max length" warning unless you set max_length
             padding=True,
             return_tensors="pt",
         )
