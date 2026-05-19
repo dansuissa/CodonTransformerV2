@@ -177,6 +177,10 @@ class TrainHarness(pl.LightningModule):
             )
             self.log_dict(ab, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
 
+            if batch_idx == 0 and self.global_rank == 0:
+                printable = {k: float(v.detach().cpu()) for k, v in ab.items()}
+                print("SPECIES_ABLATION_DEBUG", printable, flush=True)
+
             if self.buckets is not None:
                 tb = evaluate_tail_buckets(
                     model=self.model,
@@ -229,6 +233,9 @@ def load_species_to_id(path: str) -> Dict[str, int]:
 
 
 def main(args):
+    print("ARGS:", args)
+    print("MAX_LENGTH_USED:", args.max_length)
+
     pl.seed_everything(args.seed)
     torch.set_float32_matmul_precision("medium")
 
@@ -282,6 +289,8 @@ def main(args):
         max_species_id=n_species_total,
         species_dropout_prob=args.species_dropout_prob,
         mlm_probability=args.mlm_probability,
+        full_mask_probability=args.full_mask_probability,
+        max_length=args.max_length,
     )
 
     # ------------------------
@@ -352,6 +361,8 @@ def main(args):
         default_root_dir=args.checkpoint_dir,
         accelerator=args.accelerator,
         devices=args.devices,
+        num_nodes=args.num_nodes,
+        accumulate_grad_batches=args.accumulate_grad_batches,
         strategy=strategy,
         precision=args.precision,
         max_epochs=args.max_epochs,
@@ -365,7 +376,27 @@ def main(args):
     )
 
     # Important: we pass test_loader as "val" loader so you get eval metrics during training
-    trainer.fit(harness, train_loader, test_loader)
+    if args.init_from_checkpoint is not None and args.resume_from_checkpoint is None:
+        print(f"Loading model weights only from: {args.init_from_checkpoint}")
+        ckpt = torch.load(args.init_from_checkpoint, map_location="cpu")
+        state_dict = ckpt.get("state_dict", ckpt)
+        missing, unexpected = harness.load_state_dict(state_dict, strict=False)
+        print(f"Weights-only load complete. missing={len(missing)} unexpected={len(unexpected)}")
+        if len(missing) > 0:
+            print("Missing keys first 20:", missing[:20])
+        if len(unexpected) > 0:
+            print("Unexpected keys first 20:", unexpected[:20])
+
+    if args.eval_only:
+        if test_loader is None:
+            raise ValueError("--eval_only requires --test_json_dir")
+        if args.resume_from_checkpoint is None:
+            raise ValueError("--eval_only requires --resume_from_checkpoint")
+        print(f"Running eval-only from checkpoint: {args.resume_from_checkpoint}")
+        trainer.validate(harness, dataloaders=test_loader, ckpt_path=args.resume_from_checkpoint)
+        return
+
+    trainer.fit(harness, train_loader, test_loader, ckpt_path=args.resume_from_checkpoint)
 
 
 if __name__ == "__main__":
@@ -391,6 +422,7 @@ if __name__ == "__main__":
 
     # Masking + species dropout
     p.add_argument("--mlm_probability", type=float, default=0.15)
+    p.add_argument("--full_mask_probability", type=float, default=0.0, help="Probability that a sequence is fully amino-acid-masked for generation-style training.")
     p.add_argument("--species_dropout_prob", type=float, default=0.0)
 
     # Model/training
@@ -405,6 +437,7 @@ if __name__ == "__main__":
     p.add_argument("--max_epochs", type=int, default=5)
     p.add_argument("--batch_size", type=int, default=32)
     p.add_argument("--num_workers", type=int, default=8)
+    p.add_argument("--accumulate_grad_batches", type=int, default=1)
     p.add_argument("--pin_memory", action="store_true")
 
     p.add_argument("--limit_train_batches", type=int, default=400_000)
@@ -423,11 +456,15 @@ if __name__ == "__main__":
     # Hardware
     p.add_argument("--accelerator", type=str, default="gpu", help="gpu | cpu | mps | auto")
     p.add_argument("--devices", type=int, default=1)
+    p.add_argument("--num_nodes", type=int, default=1)
     p.add_argument("--strategy", type=str, default="deepspeed", help="deepspeed | ddp | auto")
     p.add_argument("--precision", type=str, default="bf16-mixed")
 
     # Checkpointing
     p.add_argument("--checkpoint_dir", type=str, default=".")
+    p.add_argument("--resume_from_checkpoint", type=str, default=None)
+    p.add_argument("--init_from_checkpoint", type=str, default=None)
+    p.add_argument("--eval_only", action="store_true")
     p.add_argument("--save_interval", type=int, default=1)
 
     # Other
