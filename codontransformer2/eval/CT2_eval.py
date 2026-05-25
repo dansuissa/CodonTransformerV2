@@ -34,17 +34,28 @@ def masked_loss_from_logits(logits: torch.Tensor,labels: torch.Tensor,ignore_ind
 
 
 @torch.no_grad()
-def masked_synonymous_accuracy(logits: torch.Tensor,labels: torch.Tensor,codon_id_to_aa_id: torch.Tensor, k: int = 1,ignore_index: int = IGNORE_INDEX,) -> torch.Tensor:
+def masked_synonymous_accuracy(
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    codon_id_to_aa_id: torch.Tensor,
+    k: int = 1,
+    ignore_index: int = IGNORE_INDEX,
+) -> torch.Tensor:
+    mask = labels.ne(ignore_index)
 
-    mask = labels.ne(ignore_index)  # [B,L]
-    denom = mask.sum().clamp_min(1).to(logits.dtype)
-    topk = logits.topk(k, dim=-1).indices  # [B,L,K]
-    gold = labels                            # [B,L]
-    pred_aa = codon_id_to_aa_id[topk]                 # [B,L,K]
-    gold_aa = codon_id_to_aa_id[gold].unsqueeze(-1)   # [B,L,1]
-    valid_gold = gold_aa.ne(-1).squeeze(-1)  # [B,L]
-    mask = mask & valid_gold
-    same = (pred_aa == gold_aa).any(dim=-1) & mask  # [B,L]
+    safe_labels = labels.clone()
+    safe_labels[~mask] = 0
+
+    topk = logits.topk(k, dim=-1).indices
+    pred_aa = codon_id_to_aa_id[topk]
+    gold_aa = codon_id_to_aa_id[safe_labels].unsqueeze(-1)
+
+    valid_gold = gold_aa.ne(-1).squeeze(-1)
+    final_mask = mask & valid_gold
+
+    denom = final_mask.sum().clamp_min(1).to(logits.dtype)
+    same = (pred_aa == gold_aa).any(dim=-1) & final_mask
+
     return same.sum().to(logits.dtype) / denom
 
 
